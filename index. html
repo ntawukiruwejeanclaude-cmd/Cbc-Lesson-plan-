@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>CBC Lesson Plan Generator</title>
+</head>
+<body>
+  <h1>CBC Lesson Plan Generator</h1>
+  <form id="lessonForm">
+    <label>Grade:</label>
+    <input type="text" id="grade" required><br>
+    <label>Subject:</label>
+    <input type="text" id="subject" required><br>
+    <label>Topic:</label>
+    <input type="text" id="topic" required><br>
+    <button type="submit">Generate Lesson Plan</button>
+  </form>
+
+  <div id="output"></div>
+
+  <script>
+    const form = document.getElementById('lessonForm');
+    const output = document.getElementById('output');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const grade = document.getElementById('grade').value;
+      const subject = document.getElementById('subject').value;
+      const topic = document.getElementById('topic').value;
+      // Placeholder AI output
+      output.innerHTML = `<h2>Lesson Plan</h2>
+                          <p>Grade: ${grade}</p>
+                          <p>Subject: ${subject}</p>
+                          <p>Topic: ${topic}</p>
+                          <p>Learning Outcomes: [Add your outcomes]</p>
+                          <p>Activities: [Add activities]</p>`;
+    });
+  </script>
+</body>
+</html>
