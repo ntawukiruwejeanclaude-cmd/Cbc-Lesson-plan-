@@ -1,39 +1,579 @@
+<?php
+session_start();
+
+// Database configuration
+$servername = "localhost";
+$username = "root";  // Hindura uko bigenda kuri server yawe
+$password = "";      // Hindura uko bigenda kuri server yawe
+$dbname = "cbc_lesson_plans";
+
+// Kora connection ya database
+$conn = new mysqli($servername, $username, $password, $dbname);
+
+// Niba database idaho, yihange
+if ($conn->connect_error) {
+    $create_db = new mysqli($servername, $username, $password);
+    if ($create_db->query("CREATE DATABASE IF NOT EXISTS $dbname") === TRUE) {
+        $conn = new mysqli($servername, $username, $password, $dbname);
+        // Kora table ya lesson plans
+        $sql = "CREATE TABLE IF NOT EXISTS lesson_plans (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            teacher_name VARCHAR(100),
+            lesson_title VARCHAR(200),
+            subject VARCHAR(100),
+            class_grade VARCHAR(50),
+            date DATE,
+            time TIME,
+            strand VARCHAR(100),
+            sub_strand VARCHAR(100),
+            competencies TEXT,
+            learning_objectives TEXT,
+            learning_resources TEXT,
+            introduction TEXT,
+            development TEXT,
+            conclusion TEXT,
+            assessment TEXT,
+            remarks TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )";
+        $conn->query($sql);
+    }
+}
+
+// Kora table ya users niba idaho
+$user_table = "CREATE TABLE IF NOT EXISTS users (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    username VARCHAR(50) UNIQUE,
+    password VARCHAR(255),
+    full_name VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)";
+$conn->query($user_table);
+
+// Shyiramo umukoresha wa mbere niba idaho
+$check_user = $conn->query("SELECT * FROM users LIMIT 1");
+if ($check_user->num_rows == 0) {
+    $default_password = password_hash('password123', PASSWORD_DEFAULT);
+    $conn->query("INSERT INTO users (username, password, full_name) VALUES ('admin', '$default_password', 'System Administrator')");
+}
+
+// Gukora action zose
+$action = $_GET['action'] ?? 'login';
+
+// Login handling
+if ($_POST['action'] ?? '' == 'login') {
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+    
+    $stmt = $conn->prepare("SELECT * FROM users WHERE username = ?");
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows == 1) {
+        $user = $result->fetch_assoc();
+        if (password_verify($password, $user['password'])) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['full_name'] = $user['full_name'];
+            $action = 'dashboard';
+        }
+    }
+}
+
+// Save lesson plan
+if ($_POST['action'] ?? '' == 'save_lesson') {
+    if (isset($_SESSION['user_id'])) {
+        $teacher_name = $_POST['teacher_name'];
+        $lesson_title = $_POST['lesson_title'];
+        $subject = $_POST['subject'];
+        $class_grade = $_POST['class_grade'];
+        $date = $_POST['date'];
+        $time = $_POST['time'];
+        $strand = $_POST['strand'];
+        $sub_strand = $_POST['sub_strand'];
+        $competencies = $_POST['competencies'];
+        $learning_objectives = $_POST['learning_objectives'];
+        $learning_resources = $_POST['learning_resources'];
+        $introduction = $_POST['introduction'];
+        $development = $_POST['development'];
+        $conclusion = $_POST['conclusion'];
+        $assessment = $_POST['assessment'];
+        $remarks = $_POST['remarks'];
+        
+        $sql = "INSERT INTO lesson_plans (teacher_name, lesson_title, subject, class_grade, date, time, strand, sub_strand, competencies, learning_objectives, learning_resources, introduction, development, conclusion, assessment, remarks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param("ssssssssssssssss", $teacher_name, $lesson_title, $subject, $class_grade, $date, $time, $strand, $sub_strand, $competencies, $learning_objectives, $learning_resources, $introduction, $development, $conclusion, $assessment, $remarks);
+        $stmt->execute();
+        $action = 'dashboard';
+    }
+}
+
+// Delete lesson plan
+if ($_GET['action'] ?? '' == 'delete' && isset($_GET['id'])) {
+    if (isset($_SESSION['user_id'])) {
+        $id = $_GET['id'];
+        $conn->query("DELETE FROM lesson_plans WHERE id = $id");
+        $action = 'dashboard';
+    }
+}
+
+// Logout
+if ($_GET['action'] ?? '' == 'logout') {
+    session_destroy();
+    $action = 'login';
+}
+?>
 <!DOCTYPE html>
-<html lang="en">
+<html lang="rn">
 <head>
-  <meta charset="UTF-8">
-  <title>CBC Lesson Plan Generator</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CBC Lesson Plan Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 25px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .nav {
+            background: #f8f9fa;
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .nav a {
+            text-decoration: none;
+            color: #4CAF50;
+            padding: 10px 20px;
+            margin: 0 5px;
+            border-radius: 25px;
+            transition: all 0.3s;
+        }
+        .nav a:hover {
+            background: #4CAF50;
+            color: white;
+        }
+        .content {
+            padding: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"], input[type="date"], input[type="time"], input[type="password"], textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        input:focus, textarea:focus, select:focus {
+            border-color: #4CAF50;
+            outline: none;
+        }
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        .btn {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #f44336, #d32f2f);
+        }
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .lesson-plan-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: transform 0.2s;
+        }
+        .lesson-plan-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            background: #4CAF50;
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 25px 0 15px 0;
+            font-size: 1.2em;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            .dashboard-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
-  <h1>CBC Lesson Plan Generator</h1>
-  <form id="lessonForm">
-    <label>Grade:</label>
-    <input type="text" id="grade" required><br>
-    <label>Subject:</label>
-    <input type="text" id="subject" required><br>
-    <label>Topic:</label>
-    <input type="text" id="topic" required><br>
-    <button type="submit">Generate Lesson Plan</button>
-  </form>
+    <div class="container">
+        <?php if ($action == 'login' || !isset($_SESSION['user_id'])): ?>
+            
+            <!-- Login Form -->
+            <div class="card login-container">
+                <div class="header">
+                    <h1>🔐 CBC Lesson Plan</h1>
+                    <p>Injira muri konti yawe</p>
+                </div>
+                <div class="content">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="login">
+                        <div class="form-group">
+                            <label>Username</label>
+                            <input type="text" name="username" value="admin" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Password</label>
+                            <input type="password" name="password" value="password123" required>
+                        </div>
+                        <button type="submit" class="btn" style="width: 100%;">Injira</button>
+                    </form>
+                    <p style="text-align: center; margin-top: 20px; color: #666;">
+                        🔐 Default: admin / password123
+                    </p>
+                </div>
+            </div>
 
-  <div id="output"></div>
+        <?php else: ?>
+            
+            <!-- Navigation -->
+            <div class="card">
+                <div class="header">
+                    <h1>📚 CBC Lesson Plan Manager</h1>
+                    <p>Welcome, <?php echo $_SESSION['full_name']; ?>!</p>
+                </div>
+                <div class="nav">
+                    <a href="?action=dashboard">🏠 Dashboard</a>
+                    <a href="?action=create">➕ Kora Lesson Plan</a>
+                    <a href="?action=logout" style="float: right;">🚪 Sohoka</a>
+                </div>
+            </div>
 
-  <script>
-    const form = document.getElementById('lessonForm');
-    const output = document.getElementById('output');
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const grade = document.getElementById('grade').value;
-      const subject = document.getElementById('subject').value;
-      const topic = document.getElementById('topic').value;
-      // Placeholder AI output
-      output.innerHTML = `<h2>Lesson Plan</h2>
-                          <p>Grade: ${grade}</p>
-                          <p>Subject: ${subject}</p>
-                          <p>Topic: ${topic}</p>
-                          <p>Learning Outcomes: [Add your outcomes]</p>
-                          <p>Activities: [Add activities]</p>`;
-    });
-  </script>
+            <!-- Content -->
+            <div class="card" style="margin-top: 20px;">
+                <div class="content">
+                    
+                    <?php if ($action == 'dashboard'): ?>
+                        
+                        <!-- Dashboard -->
+                        <h2>🏠 Dashboard</h2>
+                        
+                        <!-- Statistics -->
+                        <?php
+                        $total_plans = $conn->query("SELECT COUNT(*) as total FROM lesson_plans")->fetch_assoc()['total'];
+                        $today_plans = $conn->query("SELECT COUNT(*) as today FROM lesson_plans WHERE DATE(created_at) = CURDATE()")->fetch_assoc()['today'];
+                        ?>
+                        
+                        <div class="dashboard-stats">
+                            <div class="stat-card">
+                                <div class="stat-number"><?php echo $total_plans; ?></div>
+                                <div>Lesson Plans Zose</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number"><?php echo $today_plans; ?></div>
+                                <div>Lesson Plans Uyu munsi</div>
+                            </div>
+                        </div>
+
+                        <!-- Lesson Plans List -->
+                        <h3 style="margin-bottom: 20px;">📋 Lesson Plans Zakozwe</h3>
+                        
+                        <?php
+                        $result = $conn->query("SELECT * FROM lesson_plans ORDER BY created_at DESC");
+                        if ($result->num_rows > 0):
+                            while ($row = $result->fetch_assoc()):
+                        ?>
+                        
+                        <div class="lesson-plan-card">
+                            <h4><?php echo $row['lesson_title']; ?></h4>
+                            <p><strong>Icyigwa:</strong> <?php echo $row['subject']; ?> | 
+                               <strong>Ikiciro:</strong> <?php echo $row['class_grade']; ?> | 
+                               <strong>Itariki:</strong> <?php echo $row['date']; ?></p>
+                            <p><strong>Umutwe:</strong> <?php echo $row['strand']; ?> | 
+                               <strong>Akarere:</strong> <?php echo $row['sub_strand']; ?></p>
+                            <div class="action-buttons">
+                                <a href="?action=view&id=<?php echo $row['id']; ?>" class="btn">🔍 Reba</a>
+                                <a href="?action=delete&id=<?php echo $row['id']; ?>" class="btn btn-danger" onclick="return confirm('Urifuza gusiba lesson plan iyi?')">🗑️ Siba</a>
+                            </div>
+                        </div>
+                        
+                        <?php endwhile; else: ?>
+                            <p style="text-align: center; color: #666; padding: 40px;">
+                                Nta lesson plan zigeze zandikwa. <a href="?action=create">Kanda hano ugire icyo wandika</a>
+                            </p>
+                        <?php endif; ?>
+
+                    <?php elseif ($action == 'create'): ?>
+                        
+                        <!-- Create Lesson Plan Form -->
+                        <h2>➕ Kora Lesson Plan Nshya</h2>
+                        
+                        <form method="POST">
+                            <input type="hidden" name="action" value="save_lesson">
+                            
+                            <div class="section-title">Amakuru y'ibanze</div>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Izina ry'Umwarimu</label>
+                                    <input type="text" name="teacher_name" value="<?php echo $_SESSION['full_name']; ?>" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Izina ry'Igisomo</label>
+                                    <input type="text" name="lesson_title" placeholder="Andika izina ry'igisomo" required>
+                                </div>
+                            </div>
+                            
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Icyigwa</label>
+                                    <select name="subject" required>
+                                        <option value="">Hitamo Icyigwa</option>
+                                        <option value="Mathematics">Mathematics</option>
+                                        <option value="English">English</option>
+                                        <option value="Kinyarwanda">Kinyarwanda</option>
+                                        <option value="Science">Science</option>
+                                        <option value="Social Studies">Social Studies</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Ikiciro</label>
+                                    <select name="class_grade" required>
+                                        <option value="">Hitamo Ikiciro</option>
+                                        <option value="P1">P1</option>
+                                        <option value="P2">P2</option>
+                                        <option value="P3">P3</option>
+                                        <option value="P4">P4</option>
+                                        <option value="P5">P5</option>
+                                        <option value="P6">P6</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Itariki</label>
+                                    <input type="date" name="date" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Isaha</label>
+                                    <input type="time" name="time" required>
+                                </div>
+                            </div>
+                            
+                            <div class="section-title">Amakuru ya CBC</div>
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label>Umutwe (Strand)</label>
+                                    <input type="text" name="strand" placeholder="Andika umutwe" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Akarere (Sub-strand)</label>
+                                    <input type="text" name="sub_strand" placeholder="Andika akarere" required>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Ibigenzwa (Competencies)</label>
+                                <textarea name="competencies" placeholder="Andika ibyo umwana agenzwa..." required></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Intego z'iga (Learning Objectives)</label>
+                                <textarea name="learning_objectives" placeholder="Andika intego z'iga..." required></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Ibikoresho (Learning Resources)</label>
+                                <textarea name="learning_resources" placeholder="Andika ibikoresho by'iga..." required></textarea>
+                            </div>
+                            
+                            <div class="section-title">Imiterere y'Igisomo</div>
+                            
+                            <div class="form-group">
+                                <label>Itangiriro (Introduction - 5min)</label>
+                                <textarea name="introduction" placeholder="Andika itangiriro y'igisomo..." required></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Ukurikirane (Development - 30min)</label>
+                                <textarea name="development" placeholder="Andika uburyo igisomo gigenda..." required></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Iherezo (Conclusion - 5min)</label>
+                                <textarea name="conclusion" placeholder="Andika iherezo ry'igisomo..." required></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Igihemo (Assessment)</label>
+                                <textarea name="assessment" placeholder="Andika uburyo wemeza ko abana barize..." required></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Ibyakozwe (Remarks)</label>
+                                <textarea name="remarks" placeholder="Andika ibyakozwe n'ibisigaye..."></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn">💾 Bika Lesson Plan</button>
+                            <a href="?action=dashboard" class="btn btn-danger">❌ Ireke</a>
+                        </form>
+
+                    <?php elseif ($action == 'view' && isset($_GET['id'])): ?>
+                        
+                        <!-- View Lesson Plan -->
+                        <?php
+                        $id = $_GET['id'];
+                        $result = $conn->query("SELECT * FROM lesson_plans WHERE id = $id");
+                        if ($result->num_rows > 0):
+                            $plan = $result->fetch_assoc();
+                        ?>
+                        
+                        <h2>🔍 Reba Lesson Plan</h2>
+                        
+                        <div class="lesson-plan-card">
+                            <h3><?php echo $plan['lesson_title']; ?></h3>
+                            
+                            <div class="grid-2">
+                                <div><strong>Umwarimu:</strong> <?php echo $plan['teacher_name']; ?></div>
+                                <div><strong>Icyigwa:</strong> <?php echo $plan['subject']; ?></div>
+                                <div><strong>Ikiciro:</strong> <?php echo $plan['class_grade']; ?></div>
+                                <div><strong>Itariki:</strong> <?php echo $plan['date']; ?></div>
+                                <div><strong>Umutwe:</strong> <?php echo $plan['strand']; ?></div>
+                                <div><strong>Akarere:</strong> <?php echo $plan['sub_strand']; ?></div>
+                            </div>
+                            
+                            <div class="section-title">Ibigenzwa</div>
+                            <p><?php echo nl2br($plan['competencies']); ?></p>
+                            
+                            <div class="section-title">Intego z'iga</div>
+                            <p><?php echo nl2br($plan['learning_objectives']); ?></p>
+                            
+                            <div class="section-title">Ibikoresho</div>
+                            <p><?php echo nl2br($plan['learning_resources']); ?></p>
+                            
+                            <div class="section-title">Itangiriro</div>
+                            <p><?php echo nl2br($plan['introduction']); ?></p>
+                            
+                            <div class="section-title">Ukurikirane</div>
+                            <p><?php echo nl2br($plan['development']); ?></p>
+                            
+                            <div class="section-title">Iherezo</div>
+                            <p><?php echo nl2br($plan['conclusion']); ?></p>
+                            
+                            <div class="section-title">Igihemo</div>
+                            <p><?php echo nl2br($plan['assessment']); ?></p>
+                            
+                            <div class="section-title">Ibyakozwe</div>
+                            <p><?php echo nl2br($plan['remarks']); ?></p>
+                            
+                            <div class="action-buttons">
+                                <a href="?action=dashboard" class="btn">⬅️ Subira inyuma</a>
+                                <a href="?action=delete&id=<?php echo $plan['id']; ?>" class="btn btn-danger" onclick="return confirm('Urifuza gusiba lesson plan iyi?')">🗑️ Siba</a>
+                            </div>
+                        </div>
+                        
+                        <?php else: ?>
+                            <p>Lesson Plan ntabwo yabonetse.</p>
+                        <?php endif; ?>
+
+                    <?php endif; ?>
+                    
+                </div>
+            </div>
+
+        <?php endif; ?>
+    </div>
+
+    <script>
+        // Set default date to today
+        document.querySelector('input[type="date"]')?.valueAsDate = new Date();
+        
+        // Auto-fill time to current time
+        const now = new Date();
+        const timeString = now.getHours().toString().padStart(2, '0') + ':' + 
+                          now.getMinutes().toString().padStart(2, '0');
+        document.querySelector('input[type="time"]')?.value = timeString;
+    </script>
 </body>
 </html>
